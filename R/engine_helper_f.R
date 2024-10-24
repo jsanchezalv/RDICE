@@ -38,29 +38,26 @@ if(getRversion() >= "2.15.1") {
 #' @noRd
 
 
-initiate_evt <- function(arm_name,input_list_arm){
-  position <- which(arm_name==names(input_list_arm$init_event_list))
+initiate_evt <- function(arm_name){
+  position <- which(arm_name==names(init_event_list))
 
-  time_data <- local({
-    evts_v <- input_list_arm$init_event_list[[position]][["evts"]]
-    
-    othert_v <- input_list_arm$init_event_list[[position]][["other_inp"]]
-    
-    list2env(mget(c(evts_v,othert_v),ifnotfound=Inf), envir=environment()) #initialize
-    
-    eval(input_list_arm$init_event_list[[position]][["expr"]]) #run script
-    
-    evttime <- lapply(mget(evts_v,ifnotfound=Inf),unname) #get event times and make sure they are unnamed
-    
-    othertime <- if(!is.null(othert_v)){mget(othert_v,ifnotfound=Inf)} else{NULL}  #get other inputs times
-    
-    out <- list(evttime=evttime, othertime=othertime)
-  },input_list_arm)
+  evts_v <- init_event_list[[position]][["evts"]]
+  
+  othert_v <- init_event_list[[position]][["other_inp"]]
+  list2env(mget(c(evts_v,othert_v),ifnotfound=Inf, envir = parent.frame()$env_input_list_arm), envir= parent.frame()$env_input_list_arm) #initialize
 
+  eval(init_event_list[[position]][["expr"]], envir = parent.frame()$env_input_list_arm) #run script
+  
+  evttime <- lapply(mget(evts_v,ifnotfound=Inf, parent.frame()$env_input_list_arm),unname) #get event times and make sure they are unnamed
+  
+  time_data <- list(evttime=evttime,
+              othertime = if(!is.null(othert_v)){mget(othert_v,ifnotfound=Inf, parent.frame()$env_input_list_arm)} else{NULL}  #get other inputs times
+              )
+  
   #Event data
   cur_evtlist <- unlist(time_data$evttime)
   
-  return(list(cur_evtlist = cur_evtlist, time_data = unlist(time_data$othertime)))
+  return(list(cur_evtlist = cur_evtlist, time_data = time_data$othertime))
 }
 
 
@@ -74,7 +71,7 @@ initiate_evt <- function(arm_name,input_list_arm){
 #' @return Two lists: one containing the name and time of the next event, the other with the remaining events to be processed
 #'
 #' @examples
-#' get_next_evt(evt_list = input_list_arm$cur_evtlist)
+#' get_next_evt(evt_list = env_input_list_arm$cur_evtlist)
 #'
 #' @keywords internal
 #' @noRd
@@ -88,7 +85,7 @@ get_next_evt <- function(evt_list){                  # This function identifies 
     #select the position in the vector that has the minimum time, adding the priority times to make sure to select the right one,
     # 4x slower than old method
     
-    min_evt <- which.min(evt_list + parent.frame()$input_list_arm$precision_times[names(evt_list)]) 
+    min_evt <- which.min(evt_list + parent.frame()$env_input_list_arm$precision_times[names(evt_list)]) 
     cur_evtlist <- list(out = list(evt = names(evt_list[min_evt]), evttime = evt_list[[min_evt]]), evt_list = evt_list[-min_evt])
   } else {
     cur_evtlist <- NULL
@@ -106,98 +103,57 @@ get_next_evt <- function(evt_list){                  # This function identifies 
 #'
 #' @param thisevt A two element list containing the first list from GetNextEvt: evt and evttime
 #' @param arm A character string of the name of the intervention currently being processed
-#' @param input_list_arm A list of simulation inputs
+#' @param env_input_list_arm A list of simulation inputs
 #'
 #' @return The updated input list with after the reaction to the event is evaluated
 #'
 #' @examples
-#' react_evt(thisevt="evt1",arm="int",input_list_arm=input_list_arm)
+#' react_evt(thisevt="evt1",arm="int",env_input_list_arm=env_input_list_arm)
 #'
 #' @keywords internal
 #' @noRd
 
-react_evt <- function(thisevt,arm,input_list_arm=NULL){      # This function processes the next event (as identified in the GetNextEvt function)
+react_evt <- function(thisevt,arm){      # This function processes the next event (as identified in the GetNextEvt function)
   # Initial set-up --------------------------
   evt <- thisevt$evt                  # Identify event type
-  prevtime <- input_list_arm$curtime                 # Identify time of previous event
+  prevtime <- parent.frame()$env_input_list_arm$curtime                 # Identify time of previous event
   curtime <- thisevt$evttime         # Identify time of next event
   
   if (curtime<prevtime) {
-    stop("Time of event '", evt,"': ", round(curtime,4), " is smaller than the time of previous event '", if(!is.list(input_list_arm$evt)){input_list_arm$evt}else{NA}, "': ", round(prevtime,4), ". Arm: ", arm, ", id: ", input_list_arm$i)
+    stop("Time of event '", evt,"': ", round(curtime,4), " is smaller than the time of previous event '", if(!is.list(parent.frame()$env_input_list_arm$evt)){parent.frame()$env_input_list_arm$evt}else{NA}, "': ", round(prevtime,4), ". Arm: ", arm, ", id: ", parent.frame()$env_input_list_arm$i)
   }
   
-  input_list_arm[["curtime"]] <- curtime
-  input_list_arm[["evt"]] <- evt
-  input_list_arm[["prevtime"]] <- prevtime
-  input_list_arm[["arm"]] <- arm
+  assign("curtime",curtime, parent.frame()$env_input_list_arm)
+  assign("evt",evt, parent.frame()$env_input_list_arm)
+  assign("prevtime",prevtime, parent.frame()$env_input_list_arm)
+  assign("arm",arm, parent.frame()$env_input_list_arm)
   
   # Create costs and utilities for event --------------------------------------------------
   evt_arm <- paste(evt,arm,sep = "_")
   
   #Reset instantaneous costs/qalys/others
 
-  if(!is.null(input_list_arm$uc_lists$instant_inputs)){
-    input_list_arm[input_list_arm$uc_lists$instant_inputs] <- 0
+  if(!is.null(parent.frame()$env_input_list_arm$uc_lists$instant_inputs)){
+    assign(parent.frame()$env_input_list_arm$uc_lists$instant_inputs,0,parent.frame()$env_input_list_arm)
   }
   
-  if(input_list_arm$accum_backwards){
-    if(!is.null(input_list_arm$uc_lists$ongoing_inputs)){
-      input_list_arm[paste0(input_list_arm$uc_lists$ongoing_inputs,"_lastupdate")] <- 0
+  if(parent.frame()$env_input_list_arm$accum_backwards){
+    if(!is.null(parent.frame()$env_input_list_arm$uc_lists$ongoing_inputs)){
+      assign(paste0(parent.frame()$env_input_list_arm$uc_lists$ongoing_inputs,"_lastupdate"),0,parent.frame()$env_input_list_arm)
     }
   }
   
 
-  #Evaluate the reaction to the event
-  input_list_arm <- eval_reactevt(input_list_arm$evt_react_list, evt,input_list_arm)
-
-
-  return(input_list_arm)
-
-}
-
-
-# Evaluate event ------------------------------------------------------------------------------------------------------------------------------------------
-
-
-#' Calculates the expression which has been defined in the reaction of the event 
-#'
-#' @param react_list The evt_react_list from the input_list_arm object. It contains the reactions to events.
-#' @param evt_name The current event being processed
-#' @param input_list_arm A list of simulation inputs
-#'
-#' @return The modified input list with the updates after executing the corresponding reactions
-#'
-#' @examples
-#' eval_reactevt(react_list = input_list_arm$evt_react_list,evt_name ="evt1",input_list_arm=input_list_arm)
-#'
-#' @keywords internal
-#' @noRd
-
-eval_reactevt <-  function(react_list,evt_name,input_list_arm=NULL){
-  # Initial set-up --------------------------
-
-  position <- which(evt_name==names(react_list))
+  position <- which(evt==names(parent.frame()$env_input_list_arm$evt_react_list))
   pos_l <- length(position)
   if (pos_l==0 | pos_l>1 ) {
-    stop("Reaction to event ", evt_name, " not recognised or more than one reaction found. Make sure that only one reaction has been defined for the event")    
+    stop("Reaction to event ", evt, " not recognised or more than one reaction found. Make sure that only one reaction has been defined for the event")    
   }
-
-# Evaluate reaction -------------------------------------------------------
-
-    
-    
-    input_list_arm <- local({
-      input_list_arm <- input_list_arm
-      eval(react_list[[position]][["react"]]) #run script
-      out <- input_list_arm
-    },input_list_arm)
-    
-    
-    
   
-  return(input_list_arm)
+  # Evaluate reaction -------------------------------------------------------
   
-
+  eval(parent.frame()$env_input_list_arm$eval_react_list[[position]][["react"]], envir = parent.frame()$env_input_list_arm ) #run script
+  
 }
 
 
@@ -815,19 +771,19 @@ compute_outputs_timseq <- function(freq,
 #' @keywords internal
 #' @noRd
 
-compute_outputs <- function(patdata,input_list) {
-  arm_list <- input_list$arm_list
-  simulation <- input_list$simulation
-  sens <- input_list$sens
-  n_sim <- input_list$n_sim
-  npats <- input_list$npats
-  psa_bool <- input_list$psa_bool
+compute_outputs <- function(patdata,env_input_list) {
+  arm_list <- env_input_list$arm_list
+  simulation <- env_input_list$simulation
+  sens <- env_input_list$sens
+  n_sim <- env_input_list$n_sim
+  npats <- env_input_list$npats
+  psa_bool <- env_input_list$psa_bool
   
   patdata_dt <- NULL
   list_patdata <- NULL
 
   #Split the data as to be exported as a data.table, and the extra data the user described
-  data_export_aslist <- input_list$input_out[!input_list$input_out %in% input_list$categories_for_export]
+  data_export_aslist <- env_input_list$input_out[!env_input_list$input_out %in% env_input_list$categories_for_export]
   data_export_summarized_nonumeric <- data_export_aslist
     
   for (arm_i in arm_list) {
@@ -867,9 +823,9 @@ compute_outputs <- function(patdata,input_list) {
   
   
   prepared_outputs_v <- c(
-    if(!is.null(input_list$uc_lists$ongoing_inputs)){as.vector(outer(input_list$uc_lists$ongoing_inputs, c("undisc"), paste, sep="_"))},
-    if(!is.null(input_list$uc_lists$instant_inputs)){as.vector(outer(input_list$uc_lists$instant_inputs, c("undisc"), paste, sep="_"))},
-    if(!is.null(input_list$uc_lists$cycle_inputs)){as.vector(outer(input_list$uc_lists$cycle_inputs, c("undisc"), paste, sep="_"))}
+    if(!is.null(env_input_list$uc_lists$ongoing_inputs)){as.vector(outer(env_input_list$uc_lists$ongoing_inputs, c("undisc"), paste, sep="_"))},
+    if(!is.null(env_input_list$uc_lists$instant_inputs)){as.vector(outer(env_input_list$uc_lists$instant_inputs, c("undisc"), paste, sep="_"))},
+    if(!is.null(env_input_list$uc_lists$cycle_inputs)){as.vector(outer(env_input_list$uc_lists$cycle_inputs, c("undisc"), paste, sep="_"))}
   )
   
   #Use the data.table to initialize values
@@ -886,9 +842,9 @@ compute_outputs <- function(patdata,input_list) {
   patdata_dt[,(cols_init):=0]
   
 
-  if(input_list$accum_backwards){ #if accumulating backwards, need to rewrite values
+  if(env_input_list$accum_backwards){ #if accumulating backwards, need to rewrite values
   
-    for (cat in input_list$uc_lists$ongoing_inputs) {
+    for (cat in env_input_list$uc_lists$ongoing_inputs) {
       cat_lastupdate <- paste0(cat, "_lastupdate")
   
       # Calculate last observation index and set the last update flag in one step
@@ -909,10 +865,10 @@ compute_outputs <- function(patdata,input_list) {
     patdata_dt[, nexttime := ifelse(nexttime<evttime,evttime,nexttime)]
     }
   
-  if(!is.null(input_list$timed_freq)){
-  timed_outputs <- compute_outputs_timseq(input_list$timed_freq,
+  if(!is.null(env_input_list$timed_freq)){
+  timed_outputs <- compute_outputs_timseq(env_input_list$timed_freq,
                                           patdata_dt,
-                                          input_list,
+                                          env_input_list,
                                           prepared_outputs_v,
                                           data_export_tobesummarized,
                                           data_export_summarized_nonumeric)
@@ -922,24 +878,24 @@ compute_outputs <- function(patdata,input_list) {
   
   #Discount and undiscount ongoing
   
-  for (cat in input_list$uc_lists$ongoing_inputs) {
+  for (cat in env_input_list$uc_lists$ongoing_inputs) {
 
     patdata_dt[,paste0(cat,"_","undisc") := disc_ongoing_v(lcldr=0,
-                                                                        lclprvtime=if(input_list$accum_backwards){prevtime}else{evttime},
-                                                                        lclcurtime=if(input_list$accum_backwards){evttime}else{nexttime},
+                                                                        lclprvtime=if(env_input_list$accum_backwards){prevtime}else{evttime},
+                                                                        lclcurtime=if(env_input_list$accum_backwards){evttime}else{nexttime},
                                                                         lclval=get(cat))]
     
-    patdata_dt[,paste0(cat) := disc_ongoing_v(lcldr=input_list$drc,
-                                                                 lclprvtime=if(input_list$accum_backwards){prevtime}else{evttime},
-                                                                 lclcurtime=if(input_list$accum_backwards){evttime}else{nexttime},
+    patdata_dt[,paste0(cat) := disc_ongoing_v(lcldr=env_input_list$drc,
+                                                                 lclprvtime=if(env_input_list$accum_backwards){prevtime}else{evttime},
+                                                                 lclcurtime=if(env_input_list$accum_backwards){evttime}else{nexttime},
                                                                  lclval=get(cat))]
 
-    if(cat %in% input_list$uc_lists$cost_categories_ongoing){
+    if(cat %in% env_input_list$uc_lists$cost_categories_ongoing){
       patdata_dt[, "costs" := costs + get(cat)]
       patdata_dt[, "costs_undisc" := costs_undisc + get(paste0(cat,"_","undisc"))]
     }
     
-    if(cat %in% input_list$uc_lists$util_categories_ongoing){
+    if(cat %in% env_input_list$uc_lists$util_categories_ongoing){
       patdata_dt[, "qalys" := qalys+ get(cat)]
       patdata_dt[, "qalys_undisc" := qalys_undisc + get(paste0(cat,"_","undisc"))]
     }
@@ -949,21 +905,21 @@ compute_outputs <- function(patdata,input_list) {
   
   
   #Discount and undiscount instant
-  for (cat in input_list$uc_lists$instant_inputs) {
+  for (cat in env_input_list$uc_lists$instant_inputs) {
     patdata_dt[,paste0(cat,"_","undisc") := disc_instant_v(lcldr=0,
                                                                         lclcurtime=evttime,
                                                                         lclval=get(cat))]
     
-    patdata_dt[,paste0(cat) := disc_instant_v(lcldr=input_list$drc,
+    patdata_dt[,paste0(cat) := disc_instant_v(lcldr=env_input_list$drc,
                                                                  lclcurtime=evttime,
                                                                  lclval=get(cat))]
     
-    if(cat %in% input_list$uc_lists$cost_categories_instant){
+    if(cat %in% env_input_list$uc_lists$cost_categories_instant){
       patdata_dt[, "costs" := costs + get(cat)]
       patdata_dt[, "costs_undisc" := costs_undisc + get(paste0(cat,"_","undisc"))]
     }
     
-    if(cat %in% input_list$uc_lists$util_categories_instant){
+    if(cat %in% env_input_list$uc_lists$util_categories_instant){
       patdata_dt[, "qalys" := qalys + get(cat)]
       patdata_dt[, "qalys_undisc" := qalys_undisc + get(paste0(cat,"_","undisc"))]
     }
@@ -971,27 +927,27 @@ compute_outputs <- function(patdata,input_list) {
   }
   
   #Discount and undiscount cycle
-  for (cat in input_list$uc_lists$cycle_inputs) {
+  for (cat in env_input_list$uc_lists$cycle_inputs) {
     patdata_dt[,paste0(cat,"_","undisc") := disc_cycle_v(lcldr=0,
-                                                                    lclprvtime=if(input_list$accum_backwards){prevtime}else{evttime},
+                                                                    lclprvtime=if(env_input_list$accum_backwards){prevtime}else{evttime},
                                                                     cyclelength = get(paste0(cat,"_","cycle_l")),
-                                                                    lclcurtime=if(input_list$accum_backwards){evttime}else{nexttime},
+                                                                    lclcurtime=if(env_input_list$accum_backwards){evttime}else{nexttime},
                                                                     lclval= get(cat),
                                                                     starttime = get(paste0(cat,"_","cycle_starttime")))] 
     
-    patdata_dt[,paste0(cat) := disc_cycle_v(lcldr=input_list$drc,
-                                                             lclprvtime=if(input_list$accum_backwards){prevtime}else{evttime},
+    patdata_dt[,paste0(cat) := disc_cycle_v(lcldr=env_input_list$drc,
+                                                             lclprvtime=if(env_input_list$accum_backwards){prevtime}else{evttime},
                                                              cyclelength = get(paste0(cat,"_","cycle_l")),
-                                                             lclcurtime=if(input_list$accum_backwards){evttime}else{nexttime},
+                                                             lclcurtime=if(env_input_list$accum_backwards){evttime}else{nexttime},
                                                              lclval= get(cat),
                                                              starttime = get(paste0(cat,"_","cycle_starttime")))]
     
-    if(cat %in% input_list$uc_lists$cost_categories_cycle){
+    if(cat %in% env_input_list$uc_lists$cost_categories_cycle){
       patdata_dt[, "costs" := costs + get(cat)]
       patdata_dt[, "costs_undisc" := costs_undisc + get(paste0(cat,"_","undisc"))]
     }
     
-    if(cat %in% input_list$uc_lists$util_categories_cycle){
+    if(cat %in% env_input_list$uc_lists$util_categories_cycle){
       patdata_dt[, "qalys" := qalys + get(cat)]
       patdata_dt[, "qalys_undisc" := qalys_undisc + get(paste0(cat,"_","undisc"))]
     }
@@ -1000,14 +956,14 @@ compute_outputs <- function(patdata,input_list) {
   
   
   #Discount and undiscount LYs
-  patdata_dt[,"lys" := disc_ongoing_v(lcldr=input_list$drq,
-                                      lclprvtime=if(input_list$accum_backwards){prevtime}else{evttime},
-                                      lclcurtime=if(input_list$accum_backwards){evttime}else{nexttime},
+  patdata_dt[,"lys" := disc_ongoing_v(lcldr=env_input_list$drq,
+                                      lclprvtime=if(env_input_list$accum_backwards){prevtime}else{evttime},
+                                      lclcurtime=if(env_input_list$accum_backwards){evttime}else{nexttime},
                                       lclval=1)]
   
   patdata_dt[,"lys_undisc" := disc_ongoing_v(lcldr=0,
-                                             lclprvtime=if(input_list$accum_backwards){prevtime}else{evttime},
-                                             lclcurtime=if(input_list$accum_backwards){evttime}else{nexttime},
+                                             lclprvtime=if(env_input_list$accum_backwards){prevtime}else{evttime},
+                                             lclcurtime=if(env_input_list$accum_backwards){evttime}else{nexttime},
                                              lclval=1)]
   
   #Calculate total outcomes
@@ -1034,7 +990,7 @@ compute_outputs <- function(patdata,input_list) {
   vector_total_outputs_search <- c("lys","qalys","costs","lys_undisc","qalys_undisc","costs_undisc")
 
   #Add to final outputs the total outcomes as well as the cost/utility categories totals
-  vector_other_outputs <- c(input_list$categories_for_export,prepared_outputs_v)
+  vector_other_outputs <- c(env_input_list$categories_for_export,prepared_outputs_v)
   for (arm_i in arm_list) {
     for (output_i in 1:length(vector_total_outputs)) {
       final_output[[vector_total_outputs[output_i]]][arm_i] <- patdata_dt[arm==arm_i,.(out=sum(get(vector_total_outputs_search[output_i]),na.rm=TRUE)),by=.(pat_id)][,mean(out,na.rm=TRUE)]
@@ -1068,13 +1024,13 @@ compute_outputs <- function(patdata,input_list) {
   final_output <- c(list(arm_list=arm_list),final_output[order_final_output])
   
   #Exports IPD values either fully IPD or aggregated for events
-  if (input_list$ipd==1) {
+  if (env_input_list$ipd==1) {
     final_output$merged_df <- patdata_dt
     if(length(data_export_aslist)>0){
       final_output$extradata_raw <- export_list_ipd
     }
     
-  } else if (input_list$ipd==2) {
+  } else if (env_input_list$ipd==2) {
     #Get names of columns that will be used, 
     other_cols <- c("pat_id", "arm")
     #Columns that will not be summarized (event related columns, time and total_)
@@ -1113,7 +1069,7 @@ compute_outputs <- function(patdata,input_list) {
     }
   }
   
-  if(!is.null(input_list$timed_freq)){
+  if(!is.null(env_input_list$timed_freq)){
     final_output$timed_outputs <- timed_outputs
   }
   

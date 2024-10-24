@@ -391,6 +391,14 @@ add_item <- function(.data=NULL,...){
 
 
 
+add_items <- function(input = NULL){
+  
+  list_item <- list(list(inputs=substitute(input))) 
+  
+  return(list_item)
+}
+
+
 # Add event to list of events ---------------------------------------------
 
 #' Generate new events to be added to existing vector of events
