@@ -191,7 +191,6 @@ run_engine <- function(arm_list,
 
 
         if (is.null(Evt)==F){  
-          
           #Evalaute event
           environment(react_evt) <- env_input_list_arm
           react_evt(Evt, arm)

@@ -150,15 +150,15 @@ evt_react_list <-
                input = {}) %>%
   add_reactevt(name_evt = "sicker",
                input = {
-                 modify_item(list(q_default = util.sicker,
-                                  c_default = cost.sicker + if(arm=="int"){cost.int}else{0},
-                                  fl.sick = 0)) 
+                 q_default  <- util.sicker
+                 c_default <- cost.sicker + if(arm=="int"){cost.int}else{0}
+                 fl.sick <- 0 
                }) %>%
   add_reactevt(name_evt = "death",
                input = {
-                 modify_item(list(q_default = 0,
-                                  c_default = 0, 
-                                  curtime = Inf)) 
+                 q_default <- 0
+                 c_default <- 0
+                 curtime <- Inf 
                }) 
 
 ```

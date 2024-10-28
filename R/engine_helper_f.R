@@ -152,7 +152,8 @@ react_evt <- function(thisevt,arm){      # This function processes the next even
   
   # Evaluate reaction -------------------------------------------------------
   
-  eval(parent.frame()$env_input_list_arm$eval_react_list[[position]][["react"]], envir = parent.frame()$env_input_list_arm ) #run script
+  
+  eval(parent.frame()$env_input_list_arm$evt_react_list[[position]][["react"]], envir = parent.frame()$env_input_list_arm) #run script
   
 }
 
