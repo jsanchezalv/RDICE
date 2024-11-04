@@ -172,8 +172,11 @@ run_sim <- function(arm_list=c("int","noint"),
   
   output_sim <- list()
   
-  log_list <- list()
-  
+  log_out <- NULL
+  if(debug){
+    log_out <- vector(mode="list",length=npats*n_sim*n_sensitivity*50)
+    index_log <- 1
+  }
 
   start_time <-  proc.time()
   
@@ -260,57 +263,26 @@ run_sim <- function(arm_list=c("int","noint"),
                        timed_freq = timed_freq,
                        debug = debug,
                        accum_backwards = accum_backwards,
-                       log_list = list()
+                       index_log = 1
                       )
     
     set.seed(sens)
     
     # Draw Common parameters  -------------------------------
     sens_input_list <- list2env(input_list_sens)
+    
+    
+    if(sens_input_list$debug){
+      log_env(sens_input_list, clear = TRUE, add = FALSE)
+    }
+    
     eval(sensitivity_inputs[[1]]$inputs,envir = sens_input_list)
     
+    if(sens_input_list$debug){
+      log_out[[sens_input_list$index_log]] <- log_env(sens_input_list)
+      sens_input_list$index_log <- sens_input_list$index_log + 1
+    }
     
-    # if(!is.null(sensitivity_inputs)){
-    #   for (inp in 1:length(sensitivity_inputs)) {
-    #     
-    #     list.sensitivity_inputs <- lapply(sensitivity_inputs[inp],function(x) eval(x, input_list_sens))
-    #     
-    #     #If using pick_eval_v or other expressions, the lists are not deployed, so this is necessary to do so
-    #     if(any(is.null(names(list.sensitivity_inputs)), names(list.sensitivity_inputs)=="") & length(list.sensitivity_inputs)==1) {
-    #       input_list_sens <- c(input_list_sens, list.sensitivity_inputs[[1]])
-    #     } else{
-    #     if ((!is.null(names(list.sensitivity_inputs[[1]]))) & sens==1) {
-    #       warning("Item ", names(list.sensitivity_inputs), " is named. It is advised to assign unnamed objects if they are going to be processed in the model, as they could generate errors.\n")
-    #     }
-    #     input_list_sens <- c(input_list_sens,list.sensitivity_inputs)
-    #     }
-    #   }
-    #   
-    #   
-    #   if(input_list_sens$debug){ 
-    #     names_sens_input <- names(sensitivity_inputs)
-    #     prev_value <- setNames(vector("list", length(sensitivity_inputs)), names_sens_input)
-    #     dump_info <- list(
-    #       list(
-    #         prev_value = prev_value,
-    #         cur_value  = input_list_sens[names_sens_input]
-    #       )
-    #     )
-    #     
-    #     names(dump_info) <- paste0("Analysis: ", input_list_sens$sens,
-    #                                "; Structural"
-    #     )
-    #     
-    #     log_list <- c(log_list,dump_info)
-    #   }
-    #   
-    # }
-    
-    #Make sure there are no duplicated inputs in the model, if so, take the last one
-    # duplic <- duplicated(names(input_list_sens),fromLast = T)
-    # if (sum(duplic)>0 & sens==1) { warning("Duplicated items detected in the Analysis, using the last one added.\n")  }
-    # input_list_sens <- input_list_sens[!duplic]
-
 # Simulation loop ---------------------------------------------------------
     progressr::handlers(progressr::handler_txtprogressbar(width=100))
     
@@ -322,68 +294,31 @@ run_sim <- function(arm_list=c("int","noint"),
       start_time_sim <-  proc.time()
       
       sens_input_list$simulation <- simulation
-      # input_list <- c(input_list_sens,list(simulation=simulation))
-      
+
       set.seed(simulation)
       
       # Draw Common parameters  -------------------------------
       env_input_list <- new.env(parent = parent.env(sens_input_list))
       list2env(as.list(sens_input_list, all.names = TRUE), envir = env_input_list)
       
-      
-      # env_input_list <- rlang::env_clone(sens_input_list, parent.env(sens_input_list))
       eval(common_all_inputs[[1]]$inputs,envir = env_input_list)
+
+      if(env_input_list$debug){
+        log_out[[env_input_list$index_log]] <- log_env(env_input_list)
+        env_input_list$index_log <- env_input_list$index_log + 1
+      }
       
-      
-      # if(!is.null(common_all_inputs)){
-      #   for (inp in 1:length(common_all_inputs)) {
-      # 
-      #     list.common_all_inputs <- lapply(common_all_inputs[inp],function(x) eval(x, input_list))
-      #     #If using pick_eval_v or other expressions, the lists are not deployed, so this is necessary to do so
-      #     if(any(is.null(names(list.common_all_inputs)), names(list.common_all_inputs)=="") & length(list.common_all_inputs)==1) {
-      #       input_list <- c(input_list, list.common_all_inputs[[1]])
-      #     } else{
-      #     if ((!is.null(names(list.common_all_inputs[[1]]))) & simulation==1 & sens==1) {
-      #       warning("Item ", names(list.common_all_inputs), " is named. It is advised to assign unnamed objects if they are going to be processed in the model, as they could generate errors.\n")
-      #     }
-      #     input_list <- c(input_list,list.common_all_inputs)
-      #     }
-      #   }
-      #   
-      #   if(input_list_sens$debug){ 
-      #     names_all_input <- names(common_all_inputs)
-      #     prev_value <- setNames(vector("list", length(common_all_inputs)), names_all_input)
-      #     prev_value[names_all_input] <- input_list_sens[names_all_input]
-      #     dump_info <- list(
-      #       list(
-      #         prev_value = prev_value,
-      #         cur_value  = input_list[names_all_input]
-      #       )
-      #     )
-      #     
-      #     names(dump_info) <- paste0("Analysis: ", input_list$sens,
-      #                                "; Sim: ", input_list$sim,
-      #                                "; Statics"
-      #     )
-      #     
-      #     log_list <- c(log_list,dump_info)
-      #   }
-      # }
-  
-      #Make sure there are no duplicated inputs in the model, if so, take the last one
-      # duplic <- duplicated(names(input_list),fromLast = T)
-      # if (sum(duplic)>0 & simulation==1 & sens==1) { warning("Duplicated items detected in the Simulation, using the last one added.\n")  }
-      # input_list <- input_list[!duplic]
       
       if(is.null(env_input_list$drc)){env_input_list$drc <- 0.03}
       if(is.null(env_input_list$drq)){env_input_list$drq <- 0.03}
       
       # Run engine ----------------------------------------------------------
-  
+
         final_output <- run_engine(arm_list=arm_list,
-                                        common_pt_inputs=common_pt_inputs,
-                                        unique_pt_inputs=unique_pt_inputs,
-                                   env_input_list = env_input_list)                    # run simulation
+                                   common_pt_inputs=common_pt_inputs,
+                                   unique_pt_inputs=unique_pt_inputs,
+                                   env_input_list = env_input_list,
+                                   log_out = log_out)                    # run simulation
       if (env_input_list$ipd>0) {
         final_output$merged_df$simulation <- simulation
         final_output$merged_df$sensitivity <- sens
@@ -391,11 +326,10 @@ run_sim <- function(arm_list=c("int","noint"),
       
       final_output <- c(list(sensitivity_name = sens_name_used), final_output)
       
-      # if(env_input_list$debug){
-      #   final_output$log_list <- c(log_list,final_output$log_list)
-      #   
-      #   export_log(final_output$log_list,paste0("log_model_",format(Sys.time(), "%Y_%m_%d_%Hh_%mm_%Ss"),".txt"))
-      # }
+      if(env_input_list$debug){
+        final_output$log_list <-  unlist(final_output$log_list, recursive = FALSE)
+        log_out <- final_output$log_list
+      }
       
       output_sim[[sens]][[simulation]] <- final_output
   
@@ -411,7 +345,9 @@ run_sim <- function(arm_list=c("int","noint"),
 
   # Export results ----------------------------------------------------------
 
-  
+  # if(env_input_list$debug){
+  #   export_log(log_out,paste0("log_model_",format(Sys.time(), "%Y_%m_%d_%Hh_%mm_%Ss"),".txt"))
+  # }
   
 
   results <- output_sim

@@ -242,32 +242,90 @@ interval_out <- function(output_sim, element,round_digit=2) {
 
 # Helper function to transform the parameters exported in debug -------------------------
 
-#' Helper function to transform the parameters exported in debug for easier readibility
+#' Helper function to compare environment to cache to check changes
 #'
-#' @param debug_data List with each of the events in the debug mode
+#' @param env Environment to be compared to cache
+#' @param clear If TRUE, resets cache
+#' @param add If the changes should be evaluated (if FALSE, then it just updates the cache)
 #'
-#' @return Transformed debug data
+#' @return Named list with changes
 #'
 #'
 #' @keywords internal
 #' @noRd
+log_env <- function(env = NULL, clear = FALSE, add = TRUE) {
+    if (clear) {
+      # Clear the cache
+      .cache <<- list()
+    }
 
-transform_debug <- function(debug_data) {
-  new_event <- list()
-  prev_value <- debug_data$prev_value
-  cur_value <- debug_data$cur_value
-  
-  all_keys <- unique(c(names(prev_value), names(cur_value)))
-  
-  for (key in all_keys) {
-    new_event[[key]] <- list(
-      prev_value = prev_value[[key]],
-      cur_value = cur_value[[key]]
-    )
+    # If an environment is provided, take a snapshot
+    if (!is.null(env)) {
+      # Capture current environment state
+      current_state <- as.list(env, all.names = TRUE)
+      
+      if(add==TRUE){
+        # Get names of current and cached objects
+        current_names <- names(current_state)
+        cached_names <- names(.cache)
+        
+        # Identify new objects
+        
+        
+        new_objects <- setdiff(current_names, cached_names)
+        
+        # Identify modified objects
+        common_objects <- intersect(current_names, cached_names)
+        
+        # Apply `fast_identical` using `mapply` to batch process objects
+        modified <- mapply(identical, .cache[common_objects], current_state[common_objects], SIMPLIFY = TRUE)
+        modified_objects <- common_objects[!modified]
+        
+        exclude_objects <- c("evt","start","prevtime","curtime","arm","i")
+        
+        all_objects <- c(new_objects,modified_objects)
+        all_objects <- setdiff(c(new_objects, modified_objects), exclude_objects)
+        
+        # Store before and after values for modified objects
+        loc <- sprintf(
+          "Analysis: %s%s%s%s%s%s",
+          env$sens,
+          if (!is.null(env$simulation)) sprintf("; Sim: %s", env$simulation) else "",
+          if (!is.null(env$i)) sprintf("; Patient: %s", env$i) else "",
+          if (!is.null(env$arm)) sprintf("; Arm: %s", env$arm) else "",
+          if (!is.null(env$evt)) sprintf("; Event: %s", env$evt) else "",
+          if (!is.null(env$curtime)) sprintf("; Time: %.3f", env$curtime) else ""
+        )
+        
+        
+        if (length(all_objects) == 0) {
+          .cache <<- current_state
+          log_list <- list(NULL)
+          names(log_list) <- loc
+          
+          return(log_list)
+        }
+        
+        changes <- lapply(all_objects, function(obj) {
+          list(prev_value = .cache[[obj]], cur_value = current_state[[obj]])
+        })
+        names(changes) <- all_objects
+        
+        log_list <- list(changes)
+        names(log_list) <- loc
+        
+        .cache <<- current_state
+        
+        return(log_list)
+      }
+      
+      # Update cache to reflect current state
+      
+    }
+    
   }
-  
-  return(new_event)
-}
+
+
 
 #Expand events for time frequency approach
 
