@@ -99,12 +99,18 @@ run_engine <- function(arm_list,
         env_input_list_arm$cur_evtlist <- evt_list[["cur_evtlist"]]
         list2env(evt_list$time_data, envir = env_input_list_arm)
       }
-      
+
+
       # 3 Loop per event --------------------------------------------------------
 
       this_patient[[arm]]$evtlist <- NULL
       
       list2env(output_list, envir = env_input_list_arm)
+      
+      if(env_input_list_arm$debug){
+        log_out[[index_log]] <- log_env(env_input_list_arm)
+        index_log <- index_log + 1
+      }
 
       n_evt <- 0
       while(env_input_list_arm$curtime < Inf){
@@ -116,8 +122,8 @@ run_engine <- function(arm_list,
 
         n_evt <- n_evt +1
 
+        if (is.null(Evt)==F){
 
-        if (is.null(Evt)==F){  
           #Evalaute event
           environment(react_evt) <- env_input_list_arm
           react_evt(Evt, arm)

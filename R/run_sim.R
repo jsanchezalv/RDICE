@@ -344,10 +344,9 @@ run_sim <- function(arm_list=c("int","noint"),
 
 
   # Export results ----------------------------------------------------------
-
-  # if(env_input_list$debug){
-  #   export_log(log_out,paste0("log_model_",format(Sys.time(), "%Y_%m_%d_%Hh_%mm_%Ss"),".txt"))
-  # }
+  if(env_input_list$debug){
+    export_log(log_out,paste0("log_model_",format(Sys.time(), "%Y_%m_%d_%Hh_%mm_%Ss"),".txt"))
+  }
   
 
   results <- output_sim

@@ -281,7 +281,7 @@ log_env <- function(env = NULL, clear = FALSE, add = TRUE) {
         modified <- mapply(identical, .cache[common_objects], current_state[common_objects], SIMPLIFY = TRUE)
         modified_objects <- common_objects[!modified]
         
-        exclude_objects <- c("evt","start","prevtime","curtime","arm","i")
+        exclude_objects <- c("evt","start","prevtime","curtime","arm","i","evt_react_list","uc_lists","init_event_list","precision_times","index_log")
         
         all_objects <- c(new_objects,modified_objects)
         all_objects <- setdiff(c(new_objects, modified_objects), exclude_objects)
@@ -419,9 +419,9 @@ export_log <- function(log_list, log_name, main_byline = FALSE) {
       line_index <- line_index + 1
       
       # Add prev_value and cur_value indented under the sub_key
-      output_lines[line_index] <- paste0("     prev_value = ", sublist[[sub_key]]$prev_value)
+      output_lines[line_index] <- paste0("     prev_value = ", paste0(sublist[[sub_key]]$prev_value, collapse = "; "))
       line_index <- line_index + 1
-      output_lines[line_index] <- paste0("     cur_value  = ", sublist[[sub_key]]$cur_value)
+      output_lines[line_index] <- paste0("     cur_value  = ", paste0(sublist[[sub_key]]$cur_value, collapse = "; "))
       line_index <- line_index + 1
     }
     
